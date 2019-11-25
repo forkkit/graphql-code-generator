@@ -1,6 +1,6 @@
 import { ScalarsMap, ParsedScalarsMap, NamingConvention, ConvertFn, ConvertOptions, LoadedFragment, NormalizedScalarsMap } from './types';
 import { DeclarationBlockConfig } from './utils';
-import * as autoBind from 'auto-bind';
+import autoBind from 'auto-bind';
 import { convertFactory } from './naming';
 import { ASTNode } from 'graphql';
 
@@ -61,7 +61,7 @@ export interface RawConfig {
    * config:
    *   namingConvention: keep
    * ```
-   * @example Transform Underscores
+   * @example Remove Underscores
    * ```yml
    * config:
    *   namingConvention:
@@ -87,7 +87,7 @@ export interface RawConfig {
    * @name skipTypename
    * @type boolean
    * @default false
-   * @description Automatically adds `__typename` field to the generated types, even when they are not specified
+   * @description Does not add __typename to the generated types, unless it was specified in the selection set.
    * in the selection set.
    *
    * @example

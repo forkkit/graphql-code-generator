@@ -1,18 +1,19 @@
 import { Types, CodegenPlugin } from '@graphql-codegen/plugin-helpers';
-import { DetailedError, codegen, mergeSchemas } from '@graphql-codegen/core';
-import * as Listr from 'listr';
+import { DetailedError, codegen } from '@graphql-codegen/core';
 import { normalizeOutputParam, normalizeInstanceOrArray, normalizeConfig } from '@graphql-codegen/plugin-helpers';
 import { Renderer } from './utils/listr-renderer';
-import { loadSchema, loadDocuments } from './load';
 import { GraphQLError, DocumentNode } from 'graphql';
 import { getPluginByName } from './plugins';
 import { getPresetByName } from './presets';
 import { debugLog } from './utils/debugging';
 import { tryToBuildSchema } from './utils/try-to-build-schema';
+import { CodegenContext, ensureContext } from './config';
+
+const Listr = require('listr');
 
 export const defaultLoader = (mod: string) => import(mod);
 
-export async function executeCodegen(config: Types.Config): Promise<Types.FileOutput[]> {
+export async function executeCodegen(input: CodegenContext | Types.Config): Promise<Types.FileOutput[]> {
   function wrapTask(task: () => void | Promise<void>, source?: string) {
     return async () => {
       try {
@@ -27,11 +28,13 @@ export async function executeCodegen(config: Types.Config): Promise<Types.FileOu
     };
   }
 
+  const context = ensureContext(input);
+  const config = context.getConfig();
   const result: Types.FileOutput[] = [];
   const commonListrOptions = {
     exitOnError: true,
   };
-  let listr: Listr;
+  let listr: import('listr');
 
   if (process.env.VERBOSE) {
     listr = new Listr({
@@ -150,7 +153,7 @@ export async function executeCodegen(config: Types.Config): Promise<Types.FileOu
     title: 'Generate outputs',
     task: () => {
       return new Listr(
-        Object.keys(generates).map<Listr.ListrTask>((filename, i) => {
+        Object.keys(generates).map<import('listr').ListrTask>((filename, i) => {
           const outputConfig = generates[filename];
           const hasPreset = !!outputConfig.preset;
 
@@ -169,14 +172,16 @@ export async function executeCodegen(config: Types.Config): Promise<Types.FileOu
                     title: 'Load GraphQL schemas',
                     task: wrapTask(async () => {
                       debugLog(`[CLI] Loading Schemas`);
-                      const allSchemas = [
-                        ...rootSchemas.map(pointToSchema => loadSchema(pointToSchema, config)),
-                        ...outputSpecificSchemas.map(pointToSchema => loadSchema(pointToSchema, config))
-                      ];
-
-                      if (allSchemas.length > 0) {
-                        outputSchema = mergeSchemas(await Promise.all(allSchemas));
+                      const schemaPointerMap: any = {};
+                      const allSchemaUnnormalizedPointers = [...rootSchemas, ...outputSpecificSchemas];
+                      for (const unnormalizedPtr of allSchemaUnnormalizedPointers) {
+                        if (typeof unnormalizedPtr === 'string') {
+                          schemaPointerMap[unnormalizedPtr] = {};
+                        } else if (typeof unnormalizedPtr === 'object') {
+                          Object.assign(schemaPointerMap, unnormalizedPtr);
+                        }
                       }
+                      outputSchema = await context.loadSchema(schemaPointerMap);
                     }, filename),
                   },
                   {
@@ -184,7 +189,7 @@ export async function executeCodegen(config: Types.Config): Promise<Types.FileOu
                     task: wrapTask(async () => {
                       debugLog(`[CLI] Loading Documents`);
                       const allDocuments = [...rootDocuments, ...outputSpecificDocuments];
-                      const documents = await loadDocuments(allDocuments, config);
+                      const documents = await context.loadDocuments(allDocuments);
 
                       if (documents.length > 0) {
                         outputDocuments.push(...documents);

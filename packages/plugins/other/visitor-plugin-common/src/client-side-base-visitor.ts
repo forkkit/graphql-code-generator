@@ -1,5 +1,5 @@
 import { BaseVisitor, ParsedConfig, RawConfig } from './index';
-import * as autoBind from 'auto-bind';
+import autoBind from 'auto-bind';
 import { FragmentDefinitionNode, print, OperationDefinitionNode, visit, FragmentSpreadNode, GraphQLSchema } from 'graphql';
 import { DepGraph } from 'dependency-graph';
 import gqlTag from 'graphql-tag';
@@ -13,6 +13,7 @@ export enum DocumentMode {
   graphQLTag = 'graphQLTag',
   documentNode = 'documentNode',
   external = 'external',
+  string = 'string',
 }
 
 const EXTENSIONS_TO_REMOVE = ['.ts', '.tsx', '.js', '.jsx'];
@@ -25,7 +26,6 @@ export interface RawClientSideBasePluginConfig extends RawConfig {
   operationResultSuffix?: string;
   documentVariablePrefix?: string;
   documentVariableSuffix?: string;
-  transformUnderscore?: boolean;
   documentMode?: DocumentMode;
   importOperationTypesFrom?: string;
   importDocumentNodeExternallyFrom?: string;
@@ -68,7 +68,6 @@ export interface ClientSideBasePluginConfig extends ParsedConfig {
   noExport: boolean;
   documentVariablePrefix: string;
   documentVariableSuffix: string;
-  transformUnderscore: boolean;
   fragmentVariablePrefix: string;
   fragmentVariableSuffix: string;
 
@@ -128,7 +127,6 @@ export class ClientSideBaseVisitor<TRawConfig extends RawClientSideBasePluginCon
       documentVariableSuffix: getConfigValue(rawConfig.documentVariableSuffix, 'Document'),
       fragmentVariablePrefix: getConfigValue(rawConfig.documentVariablePrefix, ''),
       fragmentVariableSuffix: getConfigValue(rawConfig.documentVariableSuffix, 'FragmentDoc'),
-      transformUnderscore: getConfigValue(rawConfig.transformUnderscore, false),
       documentMode: ((rawConfig: RawClientSideBasePluginConfig) => {
         if (typeof rawConfig.noGraphQLTag === 'boolean') {
           return rawConfig.noGraphQLTag ? DocumentMode.documentNode : DocumentMode.graphQLTag;
@@ -148,7 +146,6 @@ export class ClientSideBaseVisitor<TRawConfig extends RawClientSideBasePluginCon
     return this.convertName(fragment, {
       suffix: this.config.fragmentVariableSuffix,
       prefix: this.config.fragmentVariablePrefix,
-      transformUnderscore: this.config.transformUnderscore,
       useTypesPrefix: false,
     });
   }
@@ -208,7 +205,11 @@ export class ClientSideBaseVisitor<TRawConfig extends RawClientSideBasePluginCon
 
   protected _gql(node: FragmentDefinitionNode | OperationDefinitionNode): string {
     const doc = this._prepareDocument(`
-    ${print(node)}
+    ${
+      print(node)
+        .split('\\')
+        .join('\\\\') /* Re-escape escaped values in GraphQL syntax */
+    }
     ${this._includeFragments(this._transformFragments(node))}`);
 
     if (this.config.documentMode === DocumentMode.documentNode) {
@@ -219,6 +220,8 @@ export class ClientSideBaseVisitor<TRawConfig extends RawClientSideBasePluginCon
       }
 
       return JSON.stringify(gqlObj);
+    } else if (this.config.documentMode === DocumentMode.string) {
+      return '`' + doc + '`';
     }
 
     return 'gql`' + doc + '`';
@@ -341,7 +344,6 @@ export class ClientSideBaseVisitor<TRawConfig extends RawClientSideBasePluginCon
     const documentVariableName = this.convertName(node, {
       suffix: this.config.documentVariableSuffix,
       prefix: this.config.documentVariablePrefix,
-      transformUnderscore: this.config.transformUnderscore,
       useTypesPrefix: false,
     });
 
@@ -355,11 +357,9 @@ export class ClientSideBaseVisitor<TRawConfig extends RawClientSideBasePluginCon
 
     const operationResultType: string = this.convertName(node, {
       suffix: operationTypeSuffix + this._parsedConfig.operationResultSuffix,
-      transformUnderscore: this.config.transformUnderscore,
     });
     const operationVariablesTypes: string = this.convertName(node, {
       suffix: operationTypeSuffix + 'Variables',
-      transformUnderscore: this.config.transformUnderscore,
     });
 
     const additional = this.buildOperation(node, documentVariableName, operationType, operationResultType, operationVariablesTypes);

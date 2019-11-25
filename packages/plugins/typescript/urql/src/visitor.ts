@@ -1,6 +1,6 @@
 import { ClientSideBaseVisitor, ClientSideBasePluginConfig, LoadedFragment, getConfigValue, OMIT_TYPE } from '@graphql-codegen/visitor-plugin-common';
 import { UrqlRawPluginConfig } from './index';
-import * as autoBind from 'auto-bind';
+import autoBind from 'auto-bind';
 import { OperationDefinitionNode, Kind } from 'graphql';
 import { pascalCase } from 'change-case';
 import { GraphQLSchema } from 'graphql';
@@ -70,6 +70,14 @@ export function use${operationName}() {
   return Urql.use${operationType}<${operationResultType}, ${operationVariablesTypes}>(${documentVariableName});
 };`;
     }
+
+    if(operationType === 'Subscription') {
+      return `
+export function use${operationName}<TData = any>(options: Omit<Urql.Use${operationType}Args<${operationVariablesTypes}>, 'query'> = {}, handler?: Urql.SubscriptionHandler<${operationName}, TData>) {
+  return Urql.use${operationType}<${operationResultType}>({ query: ${documentVariableName}, ...options }, handler);
+};`;
+    }
+
     return `
 export function use${operationName}(options: Omit<Urql.Use${operationType}Args<${operationVariablesTypes}>, 'query'> = {}) {
   return Urql.use${operationType}<${operationResultType}>({ query: ${documentVariableName}, ...options });

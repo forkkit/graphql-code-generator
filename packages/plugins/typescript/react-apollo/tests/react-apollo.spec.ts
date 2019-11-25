@@ -62,6 +62,66 @@ describe('React Apollo', () => {
   };
 
   describe('Issues', () => {
+    it('Issue #2742 - Incorrect import prefix', async () => {
+      const docs = [
+        {
+          filePath: '',
+          content: parse(/* GraphQL */ `
+            query GET_SOMEHTING {
+              feed {
+                id
+              }
+            }
+          `),
+        },
+      ];
+      const config = {
+        addDocBlocks: false,
+        withHooks: true,
+        withComponent: false,
+        withHOC: false,
+        skipTypename: true,
+        importOperationTypesFrom: 'Types',
+      };
+
+      const content = (await plugin(schema, docs, config, {
+        outputFile: 'graphql.tsx',
+      })) as Types.ComplexPluginOutput;
+
+      const output = await validateAndCompile(content, config, schema, docs, '');
+      expect(output).toContain(`export type Get_SomehtingQueryResult = ApolloReactCommon.QueryResult<Types.Get_SomehtingQuery, Types.Get_SomehtingQueryVariables>;`);
+    });
+
+    it('Issue #2826 - Incorrect prefix', async () => {
+      const docs = [
+        {
+          filePath: '',
+          content: parse(/* GraphQL */ `
+            query GET_SOMEHTING {
+              feed {
+                id
+              }
+            }
+          `),
+        },
+      ];
+      const config = {
+        addDocBlocks: false,
+        withHooks: true,
+        withComponent: false,
+        withHOC: false,
+        skipTypename: true,
+        typesPrefix: 'GQL',
+      };
+
+      const content = (await plugin(schema, docs, config, {
+        outputFile: 'graphql.tsx',
+      })) as Types.ComplexPluginOutput;
+
+      const output = await validateAndCompile(content, config, schema, docs, '');
+      expect(output).toContain(`export type Get_SomehtingQueryResult = ApolloReactCommon.QueryResult<GQLGet_SomehtingQuery, GQLGet_SomehtingQueryVariables>;`);
+    });
+
     it('PR #2725 - transformUnderscore: true causes invalid output', async () => {
       const docs = [
         {
@@ -518,6 +578,41 @@ query MyFeed {
       await validateTypeScript(content, schema, docs, {});
     });
 
+    it('should generate correct Document variable with escaped values', async () => {
+      const docs = [
+        {
+          filePath: '',
+          content: parse(/* GraphQL */ `
+            mutation Test {
+              submitRepository(repoFullName: "\\"REPONAME\\"") {
+                createdAt
+              }
+            }
+          `),
+        },
+      ];
+      const content = (await plugin(
+        schema,
+        docs,
+        {},
+        {
+          outputFile: 'graphql.tsx',
+        }
+      )) as Types.ComplexPluginOutput;
+
+      expect(content.content).toBeSimilarStringTo(`
+          export const TestDocument =  gql\`
+            mutation Test {
+              submitRepository(repoFullName: "\\\\"REPONAME\\\\"") {
+                createdAt
+              }
+            }
+          \`;
+        `);
+
+      await validateTypeScript(content, schema, docs, {});
+    });
+
     it('should generate Component', async () => {
       const docs = [{ filePath: '', content: basicDoc }];
       const content = (await plugin(
@@ -680,7 +775,7 @@ query MyFeed {
         }
       )) as Types.ComplexPluginOutput;
 
-      expect(content.content).toBeSimilarStringTo(`export type TestProps<TChildProps = {}> = ApolloReactHoc.DataProps<TestQuery, TestQueryVariables> & TChildProps;`);
+      expect(content.content).toBeSimilarStringTo(`export type TestProps<TChildProps = {}> = ApolloReactHoc.DataProps<TestQuery, TestQueryVariables> | TChildProps;`);
 
       expect(content.content).toBeSimilarStringTo(`export function withTest<TProps, TChildProps = {}>(operationOptions?: ApolloReactHoc.OperationOption<
   TProps,
@@ -706,7 +801,7 @@ query MyFeed {
         }
       )) as Types.ComplexPluginOutput;
 
-      expect(content.content).toBeSimilarStringTo(`export type TestProps<TChildProps = {}> = ApolloReactHoc.DataProps<TestQueryResponse, TestQueryVariables> & TChildProps;`);
+      expect(content.content).toBeSimilarStringTo(`export type TestProps<TChildProps = {}> = ApolloReactHoc.DataProps<TestQueryResponse, TestQueryVariables> | TChildProps;`);
 
       await validateTypeScript(content, schema, docs, {});
     });

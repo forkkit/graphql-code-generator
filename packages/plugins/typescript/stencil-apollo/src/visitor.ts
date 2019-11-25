@@ -1,9 +1,9 @@
 import { ClientSideBaseVisitor, ClientSideBasePluginConfig, getConfigValue, LoadedFragment } from '@graphql-codegen/visitor-plugin-common';
 import { StencilApolloRawPluginConfig, StencilComponentType } from './index';
-import * as autoBind from 'auto-bind';
+import autoBind from 'auto-bind';
 import { FragmentDefinitionNode, OperationDefinitionNode, GraphQLSchema } from 'graphql';
 import { toPascalCase } from '@graphql-codegen/plugin-helpers';
-import * as changeCase from 'change-case';
+import changeCase from 'change-case';
 
 export interface StencilApolloPluginConfig extends ClientSideBasePluginConfig {
   componentType: StencilComponentType;
@@ -73,8 +73,9 @@ export const ${componentName} = (props: ${propsTypeName}, children: [StencilApol
 })
 export class ${componentName} {
     @Prop() renderer: import('stencil-apollo').${rendererSignature}<${operationResultType}, ${operationVariablesTypes}>;
+    @Prop() variables: ${operationVariablesTypes};
     render() {
-        return <${apolloStencilComponentTag} ${operationType.toLowerCase()}={ ${documentVariableName} } renderer={ this.renderer } />;
+        return <${apolloStencilComponentTag} ${operationType.toLowerCase()}={ ${documentVariableName} } variables={ this.variables } renderer={ this.renderer } />;
     }
 }
       `;
